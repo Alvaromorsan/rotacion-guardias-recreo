@@ -58,19 +58,14 @@
 </div>
 
 <script>
-  // =========================================================================
-  // PEGA AQUÍ TUS 4 ENLACES ENTRE COMILLAS (LOS MISMOS QUE EN index.html)
-  // =========================================================================
   const URL_CSV_PROFESORES = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQV_ojIZRD3byi4tUtNrW5EQi_4b5Azyeu-3yPgLs3KQPONU5bvLLFWiOKzNm3eA5ArpsZX9uxK2gwX/pub?gid=1285716617&single=true&output=csv";
   const URL_CSV_FESTIVOS   = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQV_ojIZRD3byi4tUtNrW5EQi_4b5Azyeu-3yPgLs3KQPONU5bvLLFWiOKzNm3eA5ArpsZX9uxK2gwX/pub?gid=1070421064&single=true&output=csv";
   const URL_CSV_ZONAS      = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQV_ojIZRD3byi4tUtNrW5EQi_4b5Azyeu-3yPgLs3KQPONU5bvLLFWiOKzNm3eA5ArpsZX9uxK2gwX/pub?gid=385516057&single=true&output=csv";
   const URL_SCRIPT_API     = "https://script.google.com/macros/s/AKfycbwDLRVkR7tfhHpHxz4u85fmlpW3VpKXlQqW5-tdffeyTiZGty_LF7dEJw8T83Bx9GLC/exec";
-  // =========================================================================
 
   let fechaRef = new Date();
   let datos = { profes: [], festivos: [], zonas: [], ausencias: [] };
 
-  // Recordar PIN en tu navegador para no escribirlo cada vez
   document.getElementById('pinInput').value = localStorage.getItem('pin_guardias_ies') || '';
   function guardarPinLocal() {
     localStorage.setItem('pin_guardias_ies', document.getElementById('pinInput').value);
@@ -169,7 +164,7 @@
       for (let i = 0; i < grupoRot.length; i++) rotados[(i + turnoCiclo) % 4] = grupoRot[i];
 
       const titulares = [rotados[0], rotados[1], rotados[2], rotados[3], titZ5];
-      const ausentesHoy = datos.ausencias.filter(a => a.fecha === isoDia).map(a => a.profesor);
+      const ausentesHoy = datos.ausencias.filter(a => normalizarFecha(a.fecha) === isoDia).map(a => a.profesor);
 
       const okZ1 = titulares[0] && !ausentesHoy.includes(titulares[0]);
       const okZ2 = titulares[1] && !ausentesHoy.includes(titulares[1]);
