@@ -64,12 +64,17 @@
     }
     button {
       border: none;
-      padding: 8px 13px;
+      padding: 8px 11px;
       border-radius: 8px;
       cursor: pointer;
-      font-size: 0.86rem;
+      font-size: 0.84rem;
       font-weight: 600;
       transition: all 0.15s ease;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
     }
     .btn-nav { background: transparent; color: #ffffff; }
     .btn-nav:hover { background: rgba(255, 255, 255, 0.18); }
@@ -229,7 +234,7 @@
       .mobile-cards { display: flex; }
       .header-top { flex-direction: column; align-items: stretch; }
       .nav-btns { justify-content: space-between; }
-      .nav-btns button { flex: 1; text-align: center; }
+      .nav-btns button { flex: 1; padding: 8px 6px; font-size: 0.8rem; }
     }
   </style>
 </head>
