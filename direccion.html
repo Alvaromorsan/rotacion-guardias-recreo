@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dirección - Gestión Guardias Recreo</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; max-width: 1100px; margin: 16px auto; padding: 0 12px; background: #f1f5f9; color: #1e293b; }
+    .card { background: #ffffff; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
+    .header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; }
+    h2 { margin: 0; font-size: 1.3rem; color: #0f172a; }
+    .nav-btns { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    button { background: #2563eb; color: white; font-weight: 600; border: none; padding: 8px 13px; border-radius: 8px; cursor: pointer; font-size: 0.88rem; }
+    button:hover { background: #1d4ed8; }
+    button.sec { background: #e2e8f0; color: #334155; }
+    button.sec:hover { background: #cbd5e1; }
+    .btn-toggle { display: block; margin-top: 6px; padding: 4px 8px; font-size: 0.78rem; border-radius: 6px; width: 100%; text-align: center; }
+    .btn-presente { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+    .btn-presente:hover { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+    .btn-ausente { background: #dc2626; color: white; }
+    .btn-ausente:hover { background: #b91c1c; }
+    .banner { background: #eff6ff; border-left: 4px solid #2563eb; padding: 10px 14px; border-radius: 6px; margin-bottom: 14px; font-size: 0.95rem; color: #1e3a8a; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .pin-box { display: flex; align-items: center; gap: 6px; }
+    .pin-box input { padding: 6px 10px; border: 1px solid #93c5fd; border-radius: 6px; width: 95px; font-size: 0.9rem; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th, td { text-align: left; padding: 10px 9px; border: 1px solid #e2e8f0; vertical-align: top; }
+    th { background: #f8fafc; color: #475569; font-weight: 700; }
+    .festivo { background: #fefce8; color: #854d0e; font-weight: 600; text-align: center; }
+    .alerta { color: #dc2626; font-weight: 700; }
+    .sust { color: #0369a1; font-weight: 600; }
+    .titular-tachado { text-decoration: line-through; color: #94a3b8; font-size: 0.82rem; display: block; }
+    #estadoSync { font-weight: 600; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <div class="header">
+    <h2>🔐 Panel Dirección: Gestión Semanal de Guardias</h2>
+    <div class="nav-btns">
+      <button class="sec" onclick="cambiarSemana(-7)">◀ Anterior</button>
+      <button onclick="irHoy()">Semana actual</button>
+      <button class="sec" onclick="cambiarSemana(7)">Siguiente ▶</button>
+    </div>
+  </div>
+
+  <div class="banner">
+    <div id="bannerSemana">Cargando semana...</div>
+    <div class="pin-box">
+      <label for="pinInput"><strong>PIN:</strong></label>
+      <input type="password" id="pinInput" placeholder="Tu PIN" onchange="guardarPinLocal()">
+      <span id="estadoSync"></span>
+    </div>
+  </div>
+
+  <div id="tablaContenedor" class="table-wrap">Cargando datos...</div>
+</div>
+
+<script>
+  // =========================================================================
+  // PEGA AQUÍ TUS 4 ENLACES ENTRE COMILLAS (LOS MISMOS QUE EN index.html)
+  // =========================================================================
+  const URL_CSV_PROFESORES = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQV_ojIZRD3byi4tUtNrW5EQi_4b5Azyeu-3yPgLs3KQPONU5bvLLFWiOKzNm3eA5ArpsZX9uxK2gwX/pub?gid=1285716617&single=true&output=csv";
+  const URL_CSV_FESTIVOS   = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQV_ojIZRD3byi4tUtNrW5EQi_4b5Azyeu-3yPgLs3KQPONU5bvLLFWiOKzNm3eA5ArpsZX9uxK2gwX/pub?gid=1070421064&single=true&output=csv";
+  const URL_CSV_ZONAS      = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQV_ojIZRD3byi4tUtNrW5EQi_4b5Azyeu-3yPgLs3KQPONU5bvLLFWiOKzNm3eA5ArpsZX9uxK2gwX/pub?gid=385516057&single=true&output=csv";
+  const URL_SCRIPT_API     = "https://script.google.com/macros/s/AKfycbwDLRVkR7tfhHpHxz4u85fmlpW3VpKXlQqW5-tdffeyTiZGty_LF7dEJw8T83Bx9GLC/exec";
+  // =========================================================================
+
+  let fechaRef = new Date();
+  let datos = { profes: [], festivos: [], zonas: [], ausencias: [] };
+
+  // Recordar PIN en tu navegador para no escribirlo cada vez
+  document.getElementById('pinInput').value = localStorage.getItem('pin_guardias_ies') || '';
+  function guardarPinLocal() {
+    localStorage.setItem('pin_guardias_ies', document.getElementById('pinInput').value);
+  }
+
+  function parseCSV(texto) {
+    return texto.trim().split(/\r?\n/).map(linea => {
+      const res = [];
+      let actual = '', enComillas = false;
+      for (let c of linea) {
+        if (c === '"') enComillas = !enComillas;
+        else if (c === ',' && !enComillas) { res.push(actual.trim()); actual = ''; }
+        else actual += c;
+      }
+      res.push(actual.trim());
+      return res;
+    });
+  }
+
+  function normalizarFecha(str) {
+    if (!str) return "";
+    str = str.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+    const m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+    return "";
+  }
+
+  async function cargarDatos() {
+    const t = Date.now();
+    try {
+      const [rProf, rFest, rZon, rAus] = await Promise.all([
+        fetch(URL_CSV_PROFESORES + "&t=" + t).then(r => r.text()),
+        fetch(URL_CSV_FESTIVOS   + "&t=" + t).then(r => r.text()),
+        fetch(URL_CSV_ZONAS      + "&t=" + t).then(r => r.text()),
+        fetch(URL_SCRIPT_API     + "?t=" + t).then(r => r.json())
+      ]);
+
+      datos.profes    = parseCSV(rProf).slice(1);
+      datos.festivos  = parseCSV(rFest).slice(1);
+      const zRows     = parseCSV(rZon).slice(1).map(r => r[0]).filter(Boolean);
+      datos.zonas     = [zRows[0]||"Zona 1", zRows[1]||"Zona 2", zRows[2]||"Zona 3", zRows[3]||"Zona 4", zRows[4]||"Biblioteca"];
+      datos.ausencias = rAus.ausencias || [];
+
+      renderizar();
+    } catch (e) {
+      document.getElementById('tablaContenedor').innerHTML = `<p class="alerta">Error al conectar con Google Sheets.</p>`;
+    }
+  }
+
+  function renderizar() {
+    const diaRef = fechaRef.getDay();
+    const diffLunes = (diaRef === 0) ? -6 : (1 - diaRef);
+    const lunes = new Date(fechaRef);
+    lunes.setDate(fechaRef.getDate() + diffLunes);
+    lunes.setHours(12, 0, 0, 0);
+
+    const viernes = new Date(lunes);
+    viernes.setDate(lunes.getDate() + 4);
+
+    const fmtCorto = d => `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+    const fmtISO   = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+    let inicioCurso = new Date(lunes.getFullYear(), 8, 15, 12, 0, 0);
+    if (lunes < inicioCurso) inicioCurso.setFullYear(lunes.getFullYear() - 1);
+    const dIni = inicioCurso.getDay();
+    inicioCurso.setDate(inicioCurso.getDate() + ((dIni === 0) ? -6 : (1 - dIni)));
+
+    const semanaNum = Math.floor((lunes - inicioCurso) / (7 * 24 * 60 * 60 * 1000));
+    const turnoCiclo = ((semanaNum % 4) + 4) % 4;
+
+    document.getElementById('bannerSemana').innerHTML =
+      `📅 <strong>Semana del ${fmtCorto(lunes)} al ${fmtCorto(viernes)}</strong> &nbsp;|&nbsp; Ciclo: <strong>Semana ${turnoCiclo + 1} de 4</strong>`;
+
+    const z = datos.zonas;
+    const diasNombres = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
+    let html = `<table><thead><tr><th>Día</th>${z.map(n => `<th>${n}</th>`).join('')}</tr></thead><tbody>`;
+
+    for (let d = 0; d < 5; d++) {
+      const fechaDia = new Date(lunes);
+      fechaDia.setDate(lunes.getDate() + d);
+      const isoDia = fmtISO(fechaDia);
+      const etiquetaDia = `${diasNombres[d]} (${String(fechaDia.getDate()).padStart(2,'0')}/${String(fechaDia.getMonth()+1).padStart(2,'0')})`;
+
+      const festivo = datos.festivos.find(f => normalizarFecha(f[0]) === isoDia);
+      if (festivo) {
+        html += `<tr><td><strong>${etiquetaDia}</strong></td><td colspan="5" class="festivo">🎉 ${festivo[1] || 'Festivo'}</td></tr>`;
+        continue;
+      }
+
+      const profesDia = datos.profes.map(fila => fila[d]).filter(Boolean);
+      const grupoRot = profesDia.slice(0, 4);
+      const titZ5 = profesDia[4] || "";
+
+      let rotados = ["", "", "", ""];
+      for (let i = 0; i < grupoRot.length; i++) rotados[(i + turnoCiclo) % 4] = grupoRot[i];
+
+      const titulares = [rotados[0], rotados[1], rotados[2], rotados[3], titZ5];
+      const ausentesHoy = datos.ausencias.filter(a => a.fecha === isoDia).map(a => a.profesor);
+
+      const okZ1 = titulares[0] && !ausentesHoy.includes(titulares[0]);
+      const okZ2 = titulares[1] && !ausentesHoy.includes(titulares[1]);
+      const okZ3 = titulares[2] && !ausentesHoy.includes(titulares[2]);
+      const okZ4 = titulares[3] && !ausentesHoy.includes(titulares[3]);
+      const okZ5 = titulares[4] && !ausentesHoy.includes(titulares[4]);
+
+      let resZ1 = okZ1 ? titulares[0] : "⚠️ SIN CUBRIR";
+      let resZ2 = okZ2 ? titulares[1] : "⚠️ SIN CUBRIR";
+      let resZ3 = okZ3 ? titulares[2] : "⚠️ SIN CUBRIR";
+      let resZ4 = okZ4 ? titulares[3] : "⚠️ SIN CUBRIR";
+      let resZ5 = okZ5 ? titulares[4] : "🔒 CERRADA";
+
+      if (!okZ1 && okZ2 && okZ3 && okZ4) {
+        resZ1 = `${titulares[3]} (sustituye desde ${z[3]})`;
+        resZ4 = `${titulares[2]} (comparte ${z[2]} y ${z[3]})`;
+      } else if (okZ1 && !okZ2 && okZ3 && okZ4) {
+        resZ2 = `${titulares[3]} (sustituye desde ${z[3]})`;
+        resZ4 = `${titulares[2]} (comparte ${z[2]} y ${z[3]})`;
+      } else if (okZ1 && okZ2 && !okZ3 && okZ4) {
+        resZ3 = `${titulares[3]} (comparte ${z[2]} y ${z[3]})`;
+        resZ4 = `${titulares[3]} (comparte ${z[2]} y ${z[3]})`;
+      } else if (okZ1 && okZ2 && okZ3 && !okZ4) {
+        resZ4 = `${titulares[2]} (comparte ${z[2]} y ${z[3]})`;
+      } else {
+        let comodines = [];
+        if (okZ4) comodines.push({ nombre: titulares[3], origen: z[3] });
+        if (okZ3) comodines.push({ nombre: titulares[2], origen: z[2] });
+
+        if (!okZ1 && comodines.length > 0) {
+          let c = comodines.shift();
+          resZ1 = `${c.nombre} (sustituye desde ${c.origen})`;
+          if (c.nombre === titulares[3]) resZ4 = `⚠️ SIN CUBRIR (reubicado a ${z[0]})`;
+          if (c.nombre === titulares[2]) resZ3 = `⚠️ SIN CUBRIR (reubicado a ${z[0]})`;
+        }
+        if (!okZ2 && comodines.length > 0) {
+          let c = comodines.shift();
+          resZ2 = `${c.nombre} (sustituye desde ${c.origen})`;
+          if (c.nombre === titulares[3]) resZ4 = `⚠️ SIN CUBRIR (reubicado a ${z[1]})`;
+          if (c.nombre === titulares[2]) resZ3 = `⚠️ SIN CUBRIR (reubicado a ${z[1]})`;
+        }
+      }
+
+      const resultados = [resZ1, resZ2, resZ3, resZ4, resZ5];
+      html += `<tr><td><strong>${etiquetaDia}</strong></td>`;
+
+      for (let idx = 0; idx < 5; idx++) {
+        const tit = titulares[idx];
+        const resTxt = resultados[idx];
+        const estaAusente = tit && ausentesHoy.includes(tit);
+
+        let cls = "";
+        if (resTxt.includes("SIN CUBRIR") || resTxt.includes("CERRADA")) cls = "alerta";
+        else if (resTxt.includes("sustituye") || resTxt.includes("comparte")) cls = "sust";
+
+        html += `<td>`;
+        if (estaAusente) {
+          html += `<span class="titular-tachado">Titular: ${tit}</span>`;
+        }
+        html += `<div class="${cls}">${resTxt}</div>`;
+
+        if (tit) {
+          const btnClass = estaAusente ? "btn-toggle btn-ausente" : "btn-toggle btn-presente";
+          const btnLabel = estaAusente ? `❌ Ausente (Reactivar)` : `Marcar ausente`;
+          html += `<button class="${btnClass}" onclick="toggleAusencia('${isoDia}', '${tit.replace(/'/g, "\\'")}')">${btnLabel}</button>`;
+        }
+        html += `</td>`;
+      }
+      html += `</tr>`;
+    }
+
+    html += `</tbody></table>`;
+    document.getElementById('tablaContenedor').innerHTML = html;
+  }
+
+  async function toggleAusencia(fecha, profesor) {
+    const pin = document.getElementById('pinInput').value.trim();
+    const status = document.getElementById('estadoSync');
+    if (!pin) {
+      alert("Introduce tu PIN arriba a la derecha antes de marcar una ausencia.");
+      document.getElementById('pinInput').focus();
+      return;
+    }
+
+    status.style.color = "#2563eb";
+    status.innerText = "⏳ Actualizando...";
+
+    try {
+      const resp = await fetch(URL_SCRIPT_API, {
+        method: "POST",
+        body: JSON.stringify({ fecha, profesor, pin })
+      });
+      const res = await resp.json();
+      if (res.ok) {
+        status.style.color = "#16a34a";
+        status.innerText = "✅ Guardado";
+        await cargarDatos();
+        setTimeout(() => { status.innerText = ""; }, 2000);
+      } else {
+        status.style.color = "#dc2626";
+        status.innerText = "❌ " + res.msg;
+      }
+    } catch (e) {
+      status.style.color = "#dc2626";
+      status.innerText = "❌ Error de red";
+    }
+  }
+
+  function cambiarSemana(dias) { fechaRef.setDate(fechaRef.getDate() + dias); renderizar(); }
+  function irHoy() { fechaRef = new Date(); renderizar(); }
+
+  cargarDatos();
+</script>
+</body>
+</html>
